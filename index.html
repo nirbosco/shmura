@@ -443,6 +443,10 @@ main{max-width:680px;margin:0 auto;padding:14px 18px calc(120px + var(--safe-b))
       <button id="aiKeyBtn">שמירה</button>
     </div>
     <div class="stat-line" id="aiStatus"></div>
+    <button class="act" id="aiTestBtn" style="margin-top:4px">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3h6M10 3v6.3L4.7 18a2 2 0 0 0 1.8 3h11a2 2 0 0 0 1.8-3L14 9.3V3"/></svg>
+      הרצת בדיקת סיווג
+    </button>
   </div>
   <div class="set-section">
     <h4>גיבוי</h4>
@@ -559,6 +563,31 @@ function suggestTitle(text,url){
 /* שכבה 1: מילות מפתח, רץ מקומית ובחינם. שכבה 2: Gemini עם מפתח שנשמר רק על המכשיר. */
 const getAiKey=()=>{try{return localStorage.getItem('shmura_gemini_key')||''}catch(e){return ''}};
 const setAiKey=k=>{try{k?localStorage.setItem('shmura_gemini_key',k):localStorage.removeItem('shmura_gemini_key')}catch(e){}};
+const getAiModel=()=>{try{return localStorage.getItem('shmura_gemini_model')||''}catch(e){return ''}};
+const setAiModel=m=>{try{m?localStorage.setItem('shmura_gemini_model',m):localStorage.removeItem('shmura_gemini_model')}catch(e){}};
+const getAiErr=()=>{try{return localStorage.getItem('shmura_ai_err')||''}catch(e){return ''}};
+const setAiErr=m=>{try{m?localStorage.setItem('shmura_ai_err',m):localStorage.removeItem('shmura_ai_err')}catch(e){}};
+/* שמות מודלים משתנים אצל גוגל; שואלים את ה-API מה זמין ובוחרים את ה-Flash החדש ביותר */
+async function resolveModel(key){
+  try{
+    const r=await fetch('https://generativelanguage.googleapis.com/v1beta/models?key='+encodeURIComponent(key)+'&pageSize=1000');
+    if(!r.ok){setAiErr('רשימת מודלים: HTTP '+r.status);return null}
+    const j=await r.json();
+    const models=(j.models||[])
+      .filter(m=>(m.supportedGenerationMethods||[]).includes('generateContent'))
+      .map(m=>String(m.name||'').replace(/^models\//,''));
+    let pick=models.find(n=>n==='gemini-flash-latest');
+    if(!pick){
+      const flash=models
+        .map(n=>{const m=n.match(/^gemini-(\d+(?:\.\d+)?)-flash$/);return m?{n,v:parseFloat(m[1])}:null})
+        .filter(Boolean).sort((a,b)=>b.v-a.v);
+      if(flash.length)pick=flash[0].n;
+    }
+    if(!pick)pick=models.find(n=>n.includes('flash')&&!/image|live|tts|audio|embed/.test(n))||null;
+    if(pick)setAiModel(pick);
+    return pick;
+  }catch(e){setAiErr('רשימת מודלים: '+String(e).slice(0,120));return null}
+}
 const KEYWORDS={
   food:['מתכון','מתכונים','אפייה','אופים','תנור','עוגה','עוגיות','בצק','שקשוקה','פסטה','סלט','ארוחת','ארוחה','מטבח','טעים','בישול','מבשלים','רוטב','קינוח','recipe','cooking','baking','food','chef','kitchen','dinner','dessert'],
   fitness:['אימון','אימוני','כושר','שרירים','בטן','ריצה','יוגה','מתיחות','תרגיל','תרגילים','משקולות','הליכה','גוף','חיטוב','workout','fitness','gym','exercise','abs','training','stretch','running','muscle'],
@@ -580,13 +609,16 @@ function classifyLocal(text){
   }
   return best;
 }
-async function classifyAI(payload){
+async function classifyAI(payload,retried){
   const key=getAiKey();
   if(!key)return null;
+  let model=getAiModel();
+  if(!model)model=await resolveModel(key);
+  if(!model){setAiErr(getAiErr()||'לא נמצא מודל Flash זמין למפתח הזה');return null}
   try{
     const ctrl=new AbortController();
-    const to=setTimeout(()=>ctrl.abort(),8000);
-    const r=await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key='+encodeURIComponent(key),{
+    const to=setTimeout(()=>ctrl.abort(),10000);
+    const r=await fetch('https://generativelanguage.googleapis.com/v1beta/models/'+encodeURIComponent(model)+':generateContent?key='+encodeURIComponent(key),{
       method:'POST',
       headers:{'Content-Type':'application/json'},
       signal:ctrl.signal,
@@ -608,14 +640,25 @@ async function classifyAI(payload){
       })
     });
     clearTimeout(to);
-    if(!r.ok)return null;
+    if(!r.ok){
+      let msg='HTTP '+r.status;
+      try{const ej=await r.json();msg+=' · '+(ej.error?.message||'').slice(0,200)}catch(e){}
+      setAiErr(msg);
+      if((r.status===404||r.status===400)&&!retried){
+        setAiModel('');
+        const m2=await resolveModel(key);
+        if(m2)return classifyAI(payload,true);
+      }
+      return null;
+    }
     const j=await r.json();
     const txt=j.candidates?.[0]?.content?.parts?.[0]?.text;
-    if(!txt)return null;
-    const res=JSON.parse(txt);
+    if(!txt){setAiErr('תשובה ריקה מהמודל');return null}
+    const res=JSON.parse(txt.replace(/^```json\s*|```\s*$/g,''));
     if(res.category&&!payload.categories.some(c=>c.id===res.category))res.category=null;
+    setAiErr('');
     return res;
-  }catch(e){return null}
+  }catch(e){setAiErr(String(e).slice(0,150));return null}
 }
 /* פייסבוק ולינקים כלליים: microlink מחזיר og:image, כותרת, תיאור ולינק קנוני (חינם, 50 ביום) */
 async function fetchMicrolink(url){
@@ -1058,10 +1101,37 @@ $('aiKeyBtn').addEventListener('click',async()=>{
     const r=await fetch('https://generativelanguage.googleapis.com/v1beta/models?key='+encodeURIComponent(val)+'&pageSize=1');
     if(!r.ok)throw new Error();
     setAiKey(val);
+    setAiModel('');
+    const model=await resolveModel(val);
     renderAiStatus();
+    if(model)$('aiStatus').textContent='✓ הסיווג החכם פעיל (מודל: '+model+')';
     toast('הסיווג החכם פעיל ✨');
   }catch(e){
     $('aiStatus').textContent='✗ המפתח לא תקין או שאין חיבור. נסה שוב.';
+    $('aiStatus').style.color='var(--danger)';
+  }
+});
+$('aiTestBtn').addEventListener('click',async()=>{
+  if(!getAiKey()){
+    $('aiStatus').textContent='אין מפתח שמור. הדבק מפתח למעלה ולחץ שמירה.';
+    $('aiStatus').style.color='var(--danger)';
+    return;
+  }
+  $('aiStatus').textContent='מריץ בדיקה מול Gemini...';
+  $('aiStatus').style.color='var(--muted)';
+  const res=await classifyAI({
+    title:'',
+    text:'מתכון פסטה ברוטב עגבניות טרי עם בזיליקום, מוכן ב-20 דקות',
+    url:'https://example.com/test',
+    platform:'בדיקה',
+    categories:cats.map(c=>({id:c.id,name:c.name}))
+  });
+  if(res&&res.category){
+    const c=catById(res.category);
+    $('aiStatus').textContent=`✓ עובד! זיהה: ${c?c.name:res.category}${res.tags&&res.tags.length?' · תגיות: '+res.tags.join(', '):''} · מודל: ${getAiModel()||'?'}`;
+    $('aiStatus').style.color='var(--accent)';
+  }else{
+    $('aiStatus').textContent='✗ הבדיקה נכשלה: '+(getAiErr()||'תשובה ריקה');
     $('aiStatus').style.color='var(--danger)';
   }
 });
