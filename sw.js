@@ -1,4 +1,4 @@
-const VERSION = 'shmura-v6';
+const VERSION = 'shmura-v7';
 const SHELL = [
   './',
   './index.html',

@@ -382,6 +382,10 @@ main{max-width:680px;margin:0 auto;padding:14px 18px calc(120px + var(--safe-b))
     </div>
   </div>
   <div class="dup-note" id="dupNote">⚠️ הלינק הזה כבר שמור אצלך</div>
+  <button class="act" id="refreshBtn" style="padding:9px 4px;margin:-6px 0 8px">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.64-6.36M21 3v6h-6"/></svg>
+    משיכת פרטים מהרשת
+  </button>
   <div class="field">
     <label>כותרת</label>
     <input id="fTitle" type="text" placeholder="על מה הסרטון?" autocomplete="off">
@@ -693,6 +697,43 @@ async function fetchMicrolink(url){
       canon:d.url||''
     };
   }catch(e){return null}
+}
+/* גמיני קורא את העמוד בעצמו (url_context): כותרת, קטגוריה ותגיות בקריאה אחת, בלי מכסת שירות התמונות */
+async function geminiUrlMeta(url){
+  const key=getAiKey();
+  if(!key)return null;
+  let model=getAiModel();
+  if(!model)model=await resolveModel(key);
+  if(!model)return null;
+  try{
+    const ctrl=new AbortController();
+    const to=setTimeout(()=>ctrl.abort(),25000);
+    const r=await fetch('https://generativelanguage.googleapis.com/v1beta/models/'+encodeURIComponent(model)+':generateContent?key='+encodeURIComponent(key),{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      signal:ctrl.signal,
+      body:JSON.stringify({
+        tools:[{url_context:{}}],
+        systemInstruction:{parts:[{text:'אתה מסווג סרטונים ולינקים לספרייה אישית. קרא את העמוד שבקישור והחזר JSON בלבד, בלי שום טקסט נוסף, בפורמט: {"title":"כותרת קצרה בעברית, עד 60 תווים, שמתארת את התוכן עצמו","category":"ה-id המתאים מהרשימה, או null","tags":["1-3 תגיות קצרות בעברית"]}. אם אין גישה לתוכן העמוד, החזר {"title":null,"category":null,"tags":[]}.'}]},
+        contents:[{parts:[{text:`הקישור: ${url}\n\nקטגוריות זמינות:\n${cats.map(c=>`- ${c.id}: ${c.name}`).join('\n')}`}]}]
+      })
+    });
+    clearTimeout(to);
+    if(!r.ok){
+      let m='HTTP '+r.status;
+      try{const j=await r.json();m+=' · '+(j.error?.message||'').slice(0,150)}catch(e){}
+      setAiErr(m);
+      return null;
+    }
+    const j=await r.json();
+    const txt=(j.candidates?.[0]?.content?.parts||[]).map(p=>p.text||'').join('');
+    const mjson=txt.match(/\{[\s\S]*\}/);
+    if(!mjson)return null;
+    const res=JSON.parse(mjson[0]);
+    if(res.category&&!cats.some(c=>c.id===res.category))res.category=null;
+    setAiErr('');
+    return res;
+  }catch(e){setAiErr(String(e).slice(0,150));return null}
 }
 async function fetchMeta(url){
   try{
@@ -1026,6 +1067,36 @@ $('saveBtn').addEventListener('click',async()=>{
   editingId=null;
 });
 $('cancelBtn').addEventListener('click',closeSheets);
+/* רענון פרטים ללינק בודד: שירות התמונות + גמיני, ממלא את הטופס הפתוח */
+$('refreshBtn').addEventListener('click',async()=>{
+  const url=draft.url||extractUrl($('fUrl').value);
+  if(!url){toast('צריך לינק קודם');return}
+  const btn=$('refreshBtn');
+  btn.disabled=true;btn.style.opacity='.5';
+  toast('מושך פרטים...');
+  let got=false;
+  const m=await fetchMicrolink(url);
+  if(m){
+    const t=draft.platform==='facebook'?(m.desc||m.title):(m.title||m.desc);
+    if(t){$('fTitle').value=suggestTitle(t);got=true}
+    if(m.thumb){draft.thumb=m.thumb;got=true}
+    if(m.canon)draft.canon=m.canon;
+    updatePreview();
+  }
+  const g=await geminiUrlMeta(url);
+  if(g&&(g.title||g.category)){
+    got=true;
+    if(g.title)$('fTitle').value=g.title;
+    if(g.category){
+      draft.cat=g.category;
+      $('autoHint').style.display='inline';
+      renderCatOpts();
+    }
+    if(g.tags&&g.tags.length&&!$('fTags').value.trim())$('fTags').value=g.tags.join(', ');
+  }
+  btn.disabled=false;btn.style.opacity='';
+  toast(got?'הפרטים עודכנו, בדוק ושמור ✓':'אין גישה לפרטי הלינק הזה. '+(getAiErr()?'('+getAiErr().slice(0,60)+')':''));
+});
 
 /* ---- item actions ---- */
 document.addEventListener('click',e=>{
@@ -1192,43 +1263,59 @@ $('enrichBtn').addEventListener('click',async()=>{
   const st=$('archStatus');
   if(enriching){enriching=false;st.textContent='נעצר. אפשר להמשיך מאותה נקודה.';return}
   const q=enrichQuota();
-  const budget=40-q.count;
-  if(budget<=0){st.textContent='מכסת ההשלמות היומית נוצלה (מגבלה של שירות התמונות). המשך מחר.';return}
   const todo=items.filter(i=>hasTag(i,'ארכיון')&&(!i.title||!i.cat||i.cat==='later'));
   if(!todo.length){st.textContent='✓ אין מה להשלים, הכול מלא.';return}
+  const useAI=!!getAiKey();
+  if(!useAI&&q.count>=40){st.textContent='בלי מפתח Gemini יש מגבלה של 40 ביום, והיא נוצלה. המשך מחר או הוסף מפתח.';return}
   enriching=true;
-  let done=0,fails=0;
-  const batch=todo.slice(0,budget);
-  for(const it of batch){
+  let done=0,fails=0,processed=0;
+  for(const it of todo){
     if(!enriching)break;
-    st.textContent=`משלים ${done+1} מתוך ${batch.length}... (לחיצה נוספת עוצרת)`;
-    const m=await fetchMicrolink(it.url);
-    q.count++;
-    try{localStorage.setItem('shmura_enrich_q',JSON.stringify(q))}catch(e){}
-    if(m&&(m.title||m.desc)){
-      fails=0;
-      const text=[m.title,m.desc].filter(Boolean).join('\n');
-      if(!it.title)it.title=suggestTitle(it.platform==='facebook'?(m.desc||m.title):(m.title||m.desc));
-      if(!it.thumb&&m.thumb)it.thumb=m.thumb;
-      if(m.canon&&!it.canon)it.canon=m.canon;
-      if((!it.cat||it.cat==='later')&&getAiKey()){
-        const res=await classifyAI({title:it.title,text,url:it.url,platform:it.platform,categories:cats.map(c=>({id:c.id,name:c.name}))});
-        if(res){
-          if(res.category)it.cat=res.category;
-          if(res.tags&&res.tags.length)it.tags=[...new Set([...res.tags,...(it.tags||[])])];
-        }
+    processed++;
+    st.textContent=`משלים ${processed} מתוך ${todo.length}... (לחיצה נוספת עוצרת)`;
+    let applied=false;
+    /* שלב 1: גמיני קורא את העמוד בעצמו. בלי מכסה יומית קטנה */
+    if(useAI){
+      const g=await geminiUrlMeta(it.url);
+      if(g&&(g.title||g.category)){
+        if(g.title&&!it.title)it.title=g.title;
+        if(g.category&&(!it.cat||it.cat==='later'))it.cat=g.category;
+        if(g.tags&&g.tags.length)it.tags=[...new Set([...g.tags,...(it.tags||[])])];
+        applied=true;
       }
+    }
+    /* שלב 2: אם אין עדיין כותרת, שירות התמונות (מוגבל 40 ביום) משלים גם תמונה */
+    if(!it.title&&q.count<40){
+      const m=await fetchMicrolink(it.url);
+      q.count++;
+      try{localStorage.setItem('shmura_enrich_q',JSON.stringify(q))}catch(e){}
+      if(m&&(m.title||m.desc)){
+        it.title=suggestTitle(it.platform==='facebook'?(m.desc||m.title):(m.title||m.desc));
+        if(!it.thumb&&m.thumb)it.thumb=m.thumb;
+        if(m.canon&&!it.canon)it.canon=m.canon;
+        if((!it.cat||it.cat==='later')&&useAI){
+          const res=await classifyAI({title:it.title,text:[m.title,m.desc].filter(Boolean).join('\n'),url:it.url,platform:it.platform,categories:cats.map(c=>({id:c.id,name:c.name}))});
+          if(res){
+            if(res.category)it.cat=res.category;
+            if(res.tags&&res.tags.length)it.tags=[...new Set([...res.tags,...(it.tags||[])])];
+          }
+        }
+        applied=true;
+      }
+    }
+    if(applied){
       await dbPut(it);
-      done++;
+      done++;fails=0;
+      if(done%10===0)renderFeed();
     }else{
       fails++;
-      if(fails>=5){st.textContent=`הושלמו ${done}. השירות חסום כרגע, נסה שוב בעוד כמה שעות.`;enriching=false;renderFeed();return}
+      if(fails>=8){st.textContent=`הושלמו ${done} מתוך ${todo.length}. שאר הלינקים לא נגישים כרגע (כנראה ישנים או מתים), נסה שוב מאוחר יותר.`;enriching=false;renderFeed();renderCatManager();return}
     }
-    await new Promise(r=>setTimeout(r,1200));
+    await new Promise(r=>setTimeout(r,useAI?3500:1500));
   }
   enriching=false;
   renderFeed();renderCatManager();
-  st.textContent=`✓ הושלמו ${done} פריטים${40-q.count<=0?' · המכסה היומית נוצלה, המשך מחר':''}`;
+  st.textContent=`✓ הושלמו ${done} מתוך ${todo.length} פריטים`;
 });
 $('exportBtn').addEventListener('click',()=>{
   const data={app:'shmura',version:1,exportedAt:new Date().toISOString(),categories:cats,items};
