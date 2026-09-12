@@ -813,7 +813,7 @@ function cardHtml(i){
   return `<article class="card" style="position:relative">
     ${thumbHtml(i)}
     <div class="card-body">
-      <div class="card-title">${esc(i.title||hostOf(i.url))}</div>
+      <div class="card-title">${esc(i.title||(i.platform!=='web'?'סרטון מ־'+PLATFORMS[i.platform].name:hostOf(i.url)))}</div>
       <div class="card-meta">${catPill}${tags}<span class="date">${relDate(i.createdAt)}</span></div>
     </div>
   </article>`;
