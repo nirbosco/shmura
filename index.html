@@ -617,6 +617,26 @@ async function classifyAI(payload){
     return res;
   }catch(e){return null}
 }
+/* פייסבוק ולינקים כלליים: microlink מחזיר og:image, כותרת, תיאור ולינק קנוני (חינם, 50 ביום) */
+async function fetchMicrolink(url){
+  try{
+    const ctrl=new AbortController();
+    const to=setTimeout(()=>ctrl.abort(),12000);
+    const r=await fetch('https://api.microlink.io/?url='+encodeURIComponent(url),{signal:ctrl.signal});
+    clearTimeout(to);
+    if(!r.ok)return null;
+    const j=await r.json();
+    if(j.status!=='success')return null;
+    const d=j.data||{};
+    const imgUrl=d.image&&d.image.url?String(d.image.url):'';
+    return {
+      title:d.title||'',
+      desc:d.description||'',
+      thumb:imgUrl.startsWith('http')?imgUrl:'',
+      canon:d.url||''
+    };
+  }catch(e){return null}
+}
 async function fetchMeta(url){
   try{
     const ctrl=new AbortController();
@@ -698,7 +718,7 @@ function thumbHtml(i){
   const more=`<button class="card-more" data-more="${i.id}" aria-label="אפשרויות"><svg viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg></button>`;
   const play=(i.platform!=='web')?`<span class="play"><span><svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5.5v13l11-6.5z"/></svg></span></span>`:'';
   if(i.thumb){
-    return `<a class="thumb" href="${esc(i.url)}" target="_blank" rel="noopener"><img src="${esc(i.thumb)}" loading="lazy" alt="" onerror="this.parentElement.querySelector('.play')?.remove();this.replaceWith(window._phEl('${i.platform}'))">${play}${badge}${more}</a>`;
+    return `<a class="thumb" href="${esc(i.url)}" target="_blank" rel="noopener" data-pf="${i.platform}" data-canon="${esc(i.canon||i.url)}"><img src="${esc(i.thumb)}" loading="lazy" alt="">${play}${badge}${more}</a>`;
   }
   /* אין תמונה: אינסטגרם ופייסבוק מקבלים הטמעה רשמית שמציגה את הקאבר האמיתי */
   let embed=null,tall=false;
@@ -710,13 +730,37 @@ function thumbHtml(i){
   return `<a class="thumb" href="${esc(i.url)}" target="_blank" rel="noopener" style="background:linear-gradient(135deg,${p.grad[0]},${p.grad[1]})"><span class="ph"><span class="wordmark">${p.name}</span><span class="sub">${i.platform==='web'?esc(hostOf(i.url)):'סרטון שמור'}</span></span>${badge}${more}</a>`;
 }
 window._phEl=function(platform){
-  const p=PLATFORMS[platform];
+  const p=PLATFORMS[platform]||PLATFORMS.web;
   const s=document.createElement('span');
   s.className='ph';
   s.style.background=`linear-gradient(135deg,${p.grad[0]},${p.grad[1]})`;
   s.innerHTML=`<span class="wordmark">${p.name}</span><span class="sub">סרטון שמור</span>`;
   return s;
 };
+/* תמונה שנשברה (למשל תמונת פייסבוק שפג תוקפה): עוברים להטמעה רשמית, ואם אין - כרטיס ממותג */
+document.addEventListener('error',e=>{
+  const img=e.target;
+  if(!(img instanceof HTMLImageElement))return;
+  const a=img.closest('a.thumb');
+  if(!a)return;
+  const pf=a.dataset.pf||'web';
+  const canon=a.dataset.canon||a.getAttribute('href')||'';
+  a.querySelector('.play')?.remove();
+  const p=PLATFORMS[pf]||PLATFORMS.web;
+  a.style.background=`linear-gradient(135deg,${p.grad[0]},${p.grad[1]})`;
+  let embed=null;
+  if(pf==='facebook')embed=fbEmbedUrl(canon);
+  else if(pf==='instagram')embed=igEmbedUrl(canon);
+  if(embed){
+    const f=document.createElement('iframe');
+    f.className='embed';f.src=embed;f.loading='lazy';
+    f.setAttribute('scrolling','no');f.tabIndex=-1;
+    a.appendChild(window._phEl(pf));
+    img.replaceWith(f);
+  }else{
+    img.replaceWith(window._phEl(pf));
+  }
+},true);
 function hostOf(u){try{return new URL(u).hostname.replace(/^www\./,'')}catch(e){return ''}}
 
 function cardHtml(i){
@@ -856,20 +900,34 @@ function applyUrlToDraft(raw){
   const dup=items.some(i=>i.url===url&&i.id!==editingId);
   $('dupNote').classList.toggle('show',dup);
   const token=++pendingMeta;
-  fetchMeta(url).then(meta=>{
-    if(token!==pendingMeta||!meta)return;
-    if(meta.thumb&&!draft.thumb)draft.thumb=meta.thumb;
-    if(meta.title&&!$('fTitle').value)$('fTitle').value=meta.title;
-    updatePreview();
-    if(meta.title)autoClassify(meta.title);
-  });
+  if(draft.platform==='facebook'||draft.platform==='web'){
+    /* פייסבוק לא שולח טקסט בשיתוף ולא נתמך ב-noembed: microlink מביא תמונה, טקסט ולינק קנוני */
+    fetchMicrolink(url).then(m=>{
+      if(token!==pendingMeta||!m)return;
+      if(m.thumb&&!draft.thumb)draft.thumb=m.thumb;
+      if(m.canon)draft.canon=m.canon;
+      const t=draft.platform==='facebook'?(m.desc||m.title):(m.title||m.desc);
+      if(t&&!$('fTitle').value)$('fTitle').value=suggestTitle(t);
+      updatePreview();
+      const ctx=[m.title,m.desc].filter(Boolean).join('\n');
+      if(ctx)autoClassify(ctx);
+    });
+  }else{
+    fetchMeta(url).then(meta=>{
+      if(token!==pendingMeta||!meta)return;
+      if(meta.thumb&&!draft.thumb)draft.thumb=meta.thumb;
+      if(meta.title&&!$('fTitle').value)$('fTitle').value=meta.title;
+      updatePreview();
+      if(meta.title)autoClassify(meta.title);
+    });
+  }
 }
 function openSave(prefill){
   editingId=prefill.id||null;
   userTouchedCat=!!prefill.id;
   pendingClassify++;
   $('autoHint').style.display='none';
-  draft={url:'',platform:'web',thumb:prefill.thumb||'',cat:prefill.cat||null};
+  draft={url:'',platform:'web',thumb:prefill.thumb||'',cat:prefill.cat||null,canon:prefill.canon||''};
   $('saveTitle').textContent=editingId?'עריכה':'שמירת לינק';
   $('fUrl').value=prefill.url||'';
   $('fTitle').value=prefill.title||'';
@@ -898,6 +956,7 @@ $('saveBtn').addEventListener('click',async()=>{
     title:$('fTitle').value.trim()||suggestTitle('',url),
     platform:draft.platform||detectPlatform(url),
     thumb:draft.thumb||'',
+    canon:draft.canon||'',
     cat:draft.cat||null,
     tags,
     createdAt:existing?existing.createdAt:Date.now(),
