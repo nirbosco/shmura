@@ -115,6 +115,8 @@ main{max-width:680px;margin:0 auto;padding:14px 18px calc(120px + var(--safe-b))
   background:var(--surface-2);overflow:hidden;
 }
 .thumb img{width:100%;height:100%;object-fit:cover;display:block}
+.thumb.tall{aspect-ratio:4/5}
+.thumb iframe.embed{position:absolute;inset:0;width:100%;height:100%;border:0;pointer-events:none;background:transparent}
 .thumb .ph{
   width:100%;height:100%;display:flex;flex-direction:column;
   align-items:center;justify-content:center;gap:8px;
@@ -385,7 +387,7 @@ main{max-width:680px;margin:0 auto;padding:14px 18px calc(120px + var(--safe-b))
     <input id="fTitle" type="text" placeholder="על מה הסרטון?" autocomplete="off">
   </div>
   <div class="field">
-    <label>קטגוריה</label>
+    <label>קטגוריה <span id="autoHint" style="display:none;color:var(--accent);font-weight:600">· זוהתה אוטומטית, אפשר לשנות</span></label>
     <div class="cat-grid" id="fCats"></div>
   </div>
   <div class="field">
@@ -432,6 +434,15 @@ main{max-width:680px;margin:0 auto;padding:14px 18px calc(120px + var(--safe-b))
       <input id="newCatName" type="text" placeholder="קטגוריה חדשה..." maxlength="20">
       <button id="addCatBtn">הוספה</button>
     </div>
+  </div>
+  <div class="set-section">
+    <h4>סיווג חכם (AI)</h4>
+    <div class="stat-line">הדבק מפתח Gemini של גוגל, והאפליקציה תזהה לבד קטגוריה, תגיות וכותרת לכל סרטון. המפתח נשמר רק על המכשיר הזה.</div>
+    <div class="add-cat">
+      <input id="aiKey" type="password" placeholder="AIza..." dir="ltr" autocomplete="off">
+      <button id="aiKeyBtn">שמירה</button>
+    </div>
+    <div class="stat-line" id="aiStatus"></div>
   </div>
   <div class="set-section">
     <h4>גיבוי</h4>
@@ -544,6 +555,68 @@ function suggestTitle(text,url){
   if(t.length>90)t=t.slice(0,90).trim()+'…';
   return t;
 }
+/* ---- auto categorization ---- */
+/* שכבה 1: מילות מפתח, רץ מקומית ובחינם. שכבה 2: Gemini עם מפתח שנשמר רק על המכשיר. */
+const getAiKey=()=>{try{return localStorage.getItem('shmura_gemini_key')||''}catch(e){return ''}};
+const setAiKey=k=>{try{k?localStorage.setItem('shmura_gemini_key',k):localStorage.removeItem('shmura_gemini_key')}catch(e){}};
+const KEYWORDS={
+  food:['מתכון','מתכונים','אפייה','אופים','תנור','עוגה','עוגיות','בצק','שקשוקה','פסטה','סלט','ארוחת','ארוחה','מטבח','טעים','בישול','מבשלים','רוטב','קינוח','recipe','cooking','baking','food','chef','kitchen','dinner','dessert'],
+  fitness:['אימון','אימוני','כושר','שרירים','בטן','ריצה','יוגה','מתיחות','תרגיל','תרגילים','משקולות','הליכה','גוף','חיטוב','workout','fitness','gym','exercise','abs','training','stretch','running','muscle'],
+  humor:['מצחיק','קורע','צחוק','צוחק','הומור','סטנדאפ','בדיחה','קומדיה','funny','comedy','lol','meme','standup','joke','hilarious'],
+  parenting:['ילד','ילדה','ילדים','הורים','הורות','תינוק','תינוקת','גיל ההתבגרות','משפחה','אמהות','אבהות','parenting','kids','toddler','baby','children','family'],
+  education:['חינוך','מורה','מורים','כיתה','כיתות','למידה','תלמיד','תלמידים','הוראה','פדגוגיה','בית ספר','בתי ספר','שיעור','מנהלים','teacher','education','learning','classroom','school','pedagog'],
+  music:['שיר','שירים','מוזיקה','מוסיקה','להקה','הופעה','גיטרה','פסנתר','תופים','קאבר','ווקאלי','music','song','band','cover','remix','concert','vocal','guitar','piano'],
+  inspiration:['השראה','מוטיבציה','ציטוט','מסר','חוכמה','מנטליות','הרצאה','טד','הצלחה','motivation','inspiring','inspiration','mindset','quote','wisdom','ted'],
+};
+function classifyLocal(text){
+  if(!text)return null;
+  const t=text.toLowerCase();
+  let best=null,bestScore=0;
+  for(const[cat,words]of Object.entries(KEYWORDS)){
+    if(!catById(cat))continue;
+    let score=0;
+    for(const w of words)if(t.includes(w))score++;
+    if(score>bestScore){bestScore=score;best=cat}
+  }
+  return best;
+}
+async function classifyAI(payload){
+  const key=getAiKey();
+  if(!key)return null;
+  try{
+    const ctrl=new AbortController();
+    const to=setTimeout(()=>ctrl.abort(),8000);
+    const r=await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key='+encodeURIComponent(key),{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      signal:ctrl.signal,
+      body:JSON.stringify({
+        systemInstruction:{parts:[{text:'אתה מסווג סרטונים שנשמרו מרשתות חברתיות לספרייה אישית. לפי הטקסט שמצורף לסרטון, בחר את הקטגוריה המתאימה ביותר מהרשימה (החזר את ה-id שלה), הצע 1-3 תגיות קצרות בעברית, וכותרת קצרה ונקייה בעברית (עד 60 תווים). אם שום קטגוריה לא מתאימה באמת, החזר null בשדה category.'}]},
+        contents:[{parts:[{text:`פלטפורמה: ${payload.platform}\nלינק: ${payload.url}\n\nטקסט הסרטון:\n${(payload.text||'').slice(0,1500)}\n\nקטגוריות זמינות:\n${payload.categories.map(c=>`- ${c.id}: ${c.name}`).join('\n')}`}]}],
+        generationConfig:{
+          responseMimeType:'application/json',
+          responseSchema:{
+            type:'OBJECT',
+            properties:{
+              category:{type:'STRING',nullable:true},
+              tags:{type:'ARRAY',items:{type:'STRING'}},
+              title:{type:'STRING',nullable:true}
+            },
+            required:['tags']
+          }
+        }
+      })
+    });
+    clearTimeout(to);
+    if(!r.ok)return null;
+    const j=await r.json();
+    const txt=j.candidates?.[0]?.content?.parts?.[0]?.text;
+    if(!txt)return null;
+    const res=JSON.parse(txt);
+    if(res.category&&!payload.categories.some(c=>c.id===res.category))res.category=null;
+    return res;
+  }catch(e){return null}
+}
 async function fetchMeta(url){
   try{
     const ctrl=new AbortController();
@@ -605,9 +678,20 @@ function renderChips(){
     if(n===0&&activeCat!==c.id)return;
     html+=`<button class="chip ${activeCat===c.id?'on':''}" data-cat="${c.id}">${c.emoji?c.emoji+' ':''}${esc(c.name)} <span class="n">${n}</span></button>`;
   });
+  html+=`<button class="chip" data-managecats="1" aria-label="ניהול קטגוריות">＋</button>`;
   $('chips').innerHTML=html;
 }
 
+function igEmbedUrl(u){
+  try{
+    const m=new URL(u).pathname.match(/\/(reel|reels|p|tv)\/([\w-]+)/);
+    if(m)return `https://www.instagram.com/${m[1]==='reels'?'reel':m[1]}/${m[2]}/embed/`;
+  }catch(e){}
+  return null;
+}
+function fbEmbedUrl(u){
+  return 'https://www.facebook.com/plugins/video.php?href='+encodeURIComponent(u)+'&show_text=false';
+}
 function thumbHtml(i){
   const p=PLATFORMS[i.platform];
   const badge=`<span class="badge"><span class="dot" style="background:${p.color}"></span>${p.name}</span>`;
@@ -615,6 +699,13 @@ function thumbHtml(i){
   const play=(i.platform!=='web')?`<span class="play"><span><svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5.5v13l11-6.5z"/></svg></span></span>`:'';
   if(i.thumb){
     return `<a class="thumb" href="${esc(i.url)}" target="_blank" rel="noopener"><img src="${esc(i.thumb)}" loading="lazy" alt="" onerror="this.parentElement.querySelector('.play')?.remove();this.replaceWith(window._phEl('${i.platform}'))">${play}${badge}${more}</a>`;
+  }
+  /* אין תמונה: אינסטגרם ופייסבוק מקבלים הטמעה רשמית שמציגה את הקאבר האמיתי */
+  let embed=null,tall=false;
+  if(i.platform==='instagram'){embed=igEmbedUrl(i.url);tall=!!embed}
+  else if(i.platform==='facebook'){embed=fbEmbedUrl(i.url)}
+  if(embed){
+    return `<a class="thumb ${tall?'tall':''}" href="${esc(i.url)}" target="_blank" rel="noopener" style="background:linear-gradient(135deg,${p.grad[0]},${p.grad[1]})"><span class="ph"><span class="wordmark">${p.name}</span></span><iframe class="embed" src="${esc(embed)}" loading="lazy" scrolling="no" allow="encrypted-media" tabindex="-1"></iframe>${badge}${more}</a>`;
   }
   return `<a class="thumb" href="${esc(i.url)}" target="_blank" rel="noopener" style="background:linear-gradient(135deg,${p.grad[0]},${p.grad[1]})"><span class="ph"><span class="wordmark">${p.name}</span><span class="sub">${i.platform==='web'?esc(hostOf(i.url)):'סרטון שמור'}</span></span>${badge}${more}</a>`;
 }
@@ -703,11 +794,43 @@ function renderCatOpts(){
     `<button class="cat-opt ${draft.cat===c.id?'on':''}" style="--c:${c.color}" data-cat="${c.id}">${c.emoji?c.emoji+' ':''}${esc(c.name)}</button>`
   ).join('');
 }
+let userTouchedCat=false;
 $('fCats').addEventListener('click',e=>{
   const b=e.target.closest('[data-cat]');if(!b)return;
+  userTouchedCat=true;
+  $('autoHint').style.display='none';
   draft.cat=(draft.cat===b.dataset.cat)?null:b.dataset.cat;
   renderCatOpts();
 });
+let pendingClassify=0;
+function autoClassify(text){
+  if(userTouchedCat||draft.cat)return;
+  const token=++pendingClassify;
+  const apply=(cat,tags,title)=>{
+    if(token!==pendingClassify||userTouchedCat||draft.cat)return;
+    if(title&&!$('fTitle').value)$('fTitle').value=title;
+    if(!cat||!catById(cat))return;
+    draft.cat=cat;
+    if(tags&&tags.length&&!$('fTags').value)$('fTags').value=tags.join(', ');
+    $('autoHint').style.display='inline';
+    renderCatOpts();
+  };
+  const local=classifyLocal(text);
+  if(getAiKey()){
+    classifyAI({
+      title:$('fTitle').value,
+      text,
+      url:draft.url||'',
+      platform:draft.platform||'web',
+      categories:cats.map(c=>({id:c.id,name:c.name}))
+    }).then(res=>{
+      if(res&&res.category)apply(res.category,res.tags,res.title);
+      else apply(local);
+    });
+  }else{
+    apply(local);
+  }
+}
 function updatePreview(){
   const p=PLATFORMS[draft.platform||'web'];
   const strip=$('pvStrip');
@@ -738,10 +861,14 @@ function applyUrlToDraft(raw){
     if(meta.thumb&&!draft.thumb)draft.thumb=meta.thumb;
     if(meta.title&&!$('fTitle').value)$('fTitle').value=meta.title;
     updatePreview();
+    if(meta.title)autoClassify(meta.title);
   });
 }
 function openSave(prefill){
   editingId=prefill.id||null;
+  userTouchedCat=!!prefill.id;
+  pendingClassify++;
+  $('autoHint').style.display='none';
   draft={url:'',platform:'web',thumb:prefill.thumb||'',cat:prefill.cat||null};
   $('saveTitle').textContent=editingId?'עריכה':'שמירת לינק';
   $('fUrl').value=prefill.url||'';
@@ -753,6 +880,8 @@ function openSave(prefill){
   renderCatOpts();
   openSheet('saveSheet');
   if(!prefill.url)setTimeout(()=>$('fUrl').focus(),300);
+  const ctx=[prefill.title,prefill.context].filter(Boolean).join(' ');
+  if(ctx)autoClassify(ctx);
 }
 $('fUrl').addEventListener('input',e=>{
   const u=extractUrl(e.target.value)||e.target.value.trim();
@@ -804,6 +933,7 @@ $('actDelete').addEventListener('click',async()=>{
 
 /* ---- chips / search ---- */
 $('chips').addEventListener('click',e=>{
+  if(e.target.closest('[data-managecats]')){renderCatManager();renderAiStatus();openSheet('setSheet');setTimeout(()=>$('newCatName').focus(),300);return}
   const b=e.target.closest('[data-cat]');if(!b)return;
   activeCat=b.dataset.cat;renderFeed();
 });
@@ -848,7 +978,34 @@ function renderCatManager(){
   const s=filtered();
   $('statLine').textContent=`${items.length} לינקים שמורים · ${cats.length} קטגוריות`;
 }
-$('settingsBtn').addEventListener('click',()=>{renderCatManager();openSheet('setSheet')});
+$('settingsBtn').addEventListener('click',()=>{renderCatManager();renderAiStatus();openSheet('setSheet')});
+function renderAiStatus(){
+  const key=getAiKey();
+  $('aiKey').value='';
+  $('aiKey').placeholder=key?'••••••••  (מפתח שמור)':'AIza...';
+  $('aiStatus').textContent=key?'✓ הסיווג החכם פעיל':'לא מוגדר. בינתיים פועל זיהוי בסיסי לפי מילות מפתח.';
+  $('aiStatus').style.color=key?'var(--accent)':'var(--faint)';
+}
+$('aiKeyBtn').addEventListener('click',async()=>{
+  const val=$('aiKey').value.trim();
+  if(!val&&getAiKey()){
+    if(confirm('למחוק את המפתח השמור?')){setAiKey('');renderAiStatus();toast('המפתח נמחק')}
+    return;
+  }
+  if(!val)return;
+  $('aiStatus').textContent='בודק את המפתח...';
+  $('aiStatus').style.color='var(--muted)';
+  try{
+    const r=await fetch('https://generativelanguage.googleapis.com/v1beta/models?key='+encodeURIComponent(val)+'&pageSize=1');
+    if(!r.ok)throw new Error();
+    setAiKey(val);
+    renderAiStatus();
+    toast('הסיווג החכם פעיל ✨');
+  }catch(e){
+    $('aiStatus').textContent='✗ המפתח לא תקין או שאין חיבור. נסה שוב.';
+    $('aiStatus').style.color='var(--danger)';
+  }
+});
 $('catManager').addEventListener('click',async e=>{
   const b=e.target.closest('[data-delcat]');if(!b)return;
   const id=b.dataset.delcat;
@@ -913,7 +1070,7 @@ function handleShareParams(){
   const clean=cleanUrl(url);
   const existing=items.find(i=>i.url===clean);
   if(existing){toast('הלינק הזה כבר שמור אצלך');return}
-  setTimeout(()=>openSave({url,title}),200);
+  setTimeout(()=>openSave({url,title,context:(sTitle+' '+sText).trim()}),200);
 }
 
 /* ================= Boot ================= */
