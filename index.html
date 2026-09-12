@@ -449,6 +449,20 @@ main{max-width:680px;margin:0 auto;padding:14px 18px calc(120px + var(--safe-b))
     </button>
   </div>
   <div class="set-section">
+    <h4>פריטי ארכיון</h4>
+    <div class="act-list">
+      <button class="act" id="enrichBtn">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M18.4 5.6l-2.1 2.1M7.7 16.3l-2.1 2.1"/></svg>
+        השלמת כותרות וקטגוריות (עד 40 ביום)
+      </button>
+      <button class="act danger" id="purgeArchiveBtn">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/></svg>
+        מחיקת כל פריטי הארכיון
+      </button>
+    </div>
+    <div class="stat-line" id="archStatus"></div>
+  </div>
+  <div class="set-section">
     <h4>גיבוי</h4>
     <div class="act-list">
       <button class="act" id="exportBtn">
@@ -1153,6 +1167,68 @@ $('addCatBtn').addEventListener('click',()=>{
   setCats(cats);
   $('newCatName').value='';
   renderCatManager();renderFeed();
+});
+/* ---- פריטי ארכיון: מחיקה והשלמה ---- */
+const hasTag=(i,t)=>(i.tags||[]).includes(t);
+$('purgeArchiveBtn').addEventListener('click',async()=>{
+  const arch=items.filter(i=>hasTag(i,'ארכיון'));
+  if(!arch.length){$('archStatus').textContent='אין פריטים עם תגית "ארכיון".';return}
+  if(!confirm(`למחוק ${arch.length} פריטים עם תגית "ארכיון"? הפעולה סופית.`))return;
+  for(const i of arch)await dbDel(i.id);
+  items=items.filter(i=>!hasTag(i,'ארכיון'));
+  renderCatManager();renderFeed();
+  toast(`נמחקו ${arch.length} פריטים`);
+});
+let enriching=false;
+function enrichQuota(){
+  const today=new Date().toISOString().slice(0,10);
+  try{
+    const s=JSON.parse(localStorage.getItem('shmura_enrich_q'));
+    if(s&&s.date===today)return s;
+  }catch(e){}
+  return {date:today,count:0};
+}
+$('enrichBtn').addEventListener('click',async()=>{
+  const st=$('archStatus');
+  if(enriching){enriching=false;st.textContent='נעצר. אפשר להמשיך מאותה נקודה.';return}
+  const q=enrichQuota();
+  const budget=40-q.count;
+  if(budget<=0){st.textContent='מכסת ההשלמות היומית נוצלה (מגבלה של שירות התמונות). המשך מחר.';return}
+  const todo=items.filter(i=>hasTag(i,'ארכיון')&&(!i.title||!i.cat||i.cat==='later'));
+  if(!todo.length){st.textContent='✓ אין מה להשלים, הכול מלא.';return}
+  enriching=true;
+  let done=0,fails=0;
+  const batch=todo.slice(0,budget);
+  for(const it of batch){
+    if(!enriching)break;
+    st.textContent=`משלים ${done+1} מתוך ${batch.length}... (לחיצה נוספת עוצרת)`;
+    const m=await fetchMicrolink(it.url);
+    q.count++;
+    try{localStorage.setItem('shmura_enrich_q',JSON.stringify(q))}catch(e){}
+    if(m&&(m.title||m.desc)){
+      fails=0;
+      const text=[m.title,m.desc].filter(Boolean).join('\n');
+      if(!it.title)it.title=suggestTitle(it.platform==='facebook'?(m.desc||m.title):(m.title||m.desc));
+      if(!it.thumb&&m.thumb)it.thumb=m.thumb;
+      if(m.canon&&!it.canon)it.canon=m.canon;
+      if((!it.cat||it.cat==='later')&&getAiKey()){
+        const res=await classifyAI({title:it.title,text,url:it.url,platform:it.platform,categories:cats.map(c=>({id:c.id,name:c.name}))});
+        if(res){
+          if(res.category)it.cat=res.category;
+          if(res.tags&&res.tags.length)it.tags=[...new Set([...res.tags,...(it.tags||[])])];
+        }
+      }
+      await dbPut(it);
+      done++;
+    }else{
+      fails++;
+      if(fails>=5){st.textContent=`הושלמו ${done}. השירות חסום כרגע, נסה שוב בעוד כמה שעות.`;enriching=false;renderFeed();return}
+    }
+    await new Promise(r=>setTimeout(r,1200));
+  }
+  enriching=false;
+  renderFeed();renderCatManager();
+  st.textContent=`✓ הושלמו ${done} פריטים${40-q.count<=0?' · המכסה היומית נוצלה, המשך מחר':''}`;
 });
 $('exportBtn').addEventListener('click',()=>{
   const data={app:'shmura',version:1,exportedAt:new Date().toISOString(),categories:cats,items};
