@@ -1,0 +1,931 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>שמורה</title>
+<meta name="description" content="כל מה ששמרת מהרשתות, במקום אחד">
+<meta name="theme-color" content="#0a0c10">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#0a0c10;
+  --surface:#13161d;
+  --surface-2:#1a1e28;
+  --line:rgba(255,255,255,.07);
+  --line-strong:rgba(255,255,255,.13);
+  --text:#f2f4f8;
+  --muted:#8b93a5;
+  --faint:#5c6374;
+  --accent:#3ddc97;
+  --accent-deep:#0f9d6e;
+  --danger:#f87171;
+  --radius:18px;
+  --safe-b:env(safe-area-inset-bottom,0px);
+}
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html{scroll-behavior:smooth}
+body{
+  background:var(--bg);color:var(--text);
+  font-family:'Heebo',-apple-system,'Segoe UI',sans-serif;
+  font-size:15px;line-height:1.5;
+  min-height:100dvh;
+  overscroll-behavior-y:contain;
+}
+button{font-family:inherit;color:inherit;background:none;border:none;cursor:pointer}
+a{color:inherit;text-decoration:none}
+input,textarea{font-family:inherit;color:inherit}
+::selection{background:rgba(61,220,151,.3)}
+
+/* ---------- Header ---------- */
+header{
+  position:sticky;top:0;z-index:30;
+  background:linear-gradient(to bottom,rgba(10,12,16,.92),rgba(10,12,16,.78));
+  backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);
+  border-bottom:1px solid var(--line);
+}
+.hdr-row{
+  display:flex;align-items:center;gap:12px;
+  padding:14px 18px 10px;
+  max-width:680px;margin:0 auto;
+}
+.logo{display:flex;align-items:center;gap:10px;flex:1;min-width:0}
+.logo svg{flex-shrink:0}
+.logo h1{font-size:21px;font-weight:800;letter-spacing:-.3px}
+.logo .count{font-size:12.5px;color:var(--muted);font-weight:500;margin-top:1px}
+.icon-btn{
+  width:40px;height:40px;border-radius:13px;flex-shrink:0;
+  display:grid;place-items:center;
+  background:var(--surface);border:1px solid var(--line);
+  color:var(--muted);transition:all .18s;
+}
+.icon-btn:active{transform:scale(.92)}
+.icon-btn.active{color:var(--accent);border-color:rgba(61,220,151,.35);background:rgba(61,220,151,.08)}
+.icon-btn svg{width:19px;height:19px}
+
+/* search */
+.search-wrap{max-width:680px;margin:0 auto;padding:0 18px;overflow:hidden;max-height:0;transition:max-height .25s ease,padding .25s ease}
+.search-wrap.open{max-height:64px;padding:2px 18px 12px}
+.search-box{
+  display:flex;align-items:center;gap:10px;
+  background:var(--surface);border:1px solid var(--line-strong);
+  border-radius:14px;padding:10px 14px;
+}
+.search-box svg{width:17px;height:17px;color:var(--faint);flex-shrink:0}
+.search-box input{flex:1;background:none;border:none;outline:none;font-size:15px}
+.search-box input::placeholder{color:var(--faint)}
+.search-clear{color:var(--faint);display:none}
+.search-clear.show{display:grid}
+
+/* chips */
+.chips{
+  display:flex;gap:8px;overflow-x:auto;
+  padding:10px 18px 12px;max-width:680px;margin:0 auto;
+  scrollbar-width:none;
+}
+.chips::-webkit-scrollbar{display:none}
+.chip{
+  display:flex;align-items:center;gap:6px;flex-shrink:0;
+  padding:7px 14px;border-radius:999px;
+  background:var(--surface);border:1px solid var(--line);
+  font-size:13.5px;font-weight:600;color:var(--muted);
+  transition:all .18s;white-space:nowrap;
+}
+.chip:active{transform:scale(.95)}
+.chip .n{font-size:11.5px;color:var(--faint);font-weight:500}
+.chip.on{background:var(--text);color:#0c0e13;border-color:transparent}
+.chip.on .n{color:#565d6e}
+
+/* ---------- Feed ---------- */
+main{max-width:680px;margin:0 auto;padding:14px 18px calc(120px + var(--safe-b))}
+.card{
+  background:var(--surface);border:1px solid var(--line);
+  border-radius:var(--radius);overflow:hidden;
+  margin-bottom:14px;
+  animation:rise .3s ease both;
+}
+@keyframes rise{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+.thumb{
+  position:relative;display:block;width:100%;aspect-ratio:16/9;
+  background:var(--surface-2);overflow:hidden;
+}
+.thumb img{width:100%;height:100%;object-fit:cover;display:block}
+.thumb .ph{
+  width:100%;height:100%;display:flex;flex-direction:column;
+  align-items:center;justify-content:center;gap:8px;
+}
+.thumb .ph .wordmark{font-size:24px;font-weight:800;letter-spacing:-.5px;color:rgba(255,255,255,.95)}
+.thumb .ph .sub{font-size:12px;color:rgba(255,255,255,.55);font-weight:500}
+.badge{
+  position:absolute;top:10px;inset-inline-start:10px;
+  display:flex;align-items:center;gap:6px;
+  background:rgba(8,10,14,.72);backdrop-filter:blur(8px);
+  border:1px solid rgba(255,255,255,.12);
+  border-radius:999px;padding:4px 11px 4px 12px;
+  font-size:11.5px;font-weight:700;letter-spacing:.2px;color:#fff;
+}
+.badge .dot{width:7px;height:7px;border-radius:50%}
+.play{
+  position:absolute;inset:0;display:grid;place-items:center;pointer-events:none;
+}
+.play span{
+  width:46px;height:46px;border-radius:50%;
+  background:rgba(8,10,14,.55);backdrop-filter:blur(6px);
+  border:1px solid rgba(255,255,255,.2);
+  display:grid;place-items:center;
+}
+.play svg{width:17px;height:17px;color:#fff;margin-inline-start:2px}
+.card-body{padding:13px 15px 14px}
+.card-title{
+  font-size:15.5px;font-weight:600;line-height:1.4;
+  display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;
+  margin-bottom:9px;
+}
+.card-meta{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.cat-pill{
+  display:inline-flex;align-items:center;gap:5px;
+  font-size:12px;font-weight:700;
+  padding:3.5px 11px;border-radius:999px;
+}
+.tag{font-size:12px;color:var(--muted);font-weight:500}
+.tag::before{content:'#';color:var(--faint)}
+.card-meta .date{font-size:12px;color:var(--faint);margin-inline-start:auto;font-weight:500}
+.card-more{
+  position:absolute;bottom:10px;inset-inline-end:10px;
+  width:34px;height:34px;border-radius:11px;
+  background:rgba(8,10,14,.72);backdrop-filter:blur(8px);
+  border:1px solid rgba(255,255,255,.12);
+  display:grid;place-items:center;color:#fff;
+}
+.card-more svg{width:16px;height:16px}
+
+/* month divider */
+.month-h{
+  font-size:12.5px;font-weight:700;color:var(--faint);
+  letter-spacing:.4px;margin:22px 4px 12px;
+  text-transform:uppercase;
+}
+.month-h:first-child{margin-top:4px}
+
+/* empty state */
+.empty{
+  text-align:center;padding:70px 24px 40px;
+  animation:rise .4s ease both;
+}
+.empty svg{margin-bottom:20px;opacity:.9}
+.empty h2{font-size:19px;font-weight:800;margin-bottom:8px}
+.empty p{color:var(--muted);font-size:14px;max-width:300px;margin:0 auto 6px}
+.empty .hint{
+  display:inline-flex;align-items:center;gap:8px;
+  margin-top:18px;padding:10px 18px;border-radius:14px;
+  background:var(--surface);border:1px solid var(--line);
+  font-size:13.5px;color:var(--muted);font-weight:500;
+}
+.empty .hint svg{width:16px;height:16px;margin:0;color:var(--accent)}
+
+/* ---------- FAB ---------- */
+.fab{
+  position:fixed;bottom:calc(24px + var(--safe-b));inset-inline-end:20px;z-index:25;
+  width:58px;height:58px;border-radius:19px;
+  background:linear-gradient(135deg,var(--accent),var(--accent-deep));
+  color:#04120c;display:grid;place-items:center;
+  box-shadow:0 8px 28px rgba(61,220,151,.35),0 2px 8px rgba(0,0,0,.4);
+  transition:transform .18s;
+}
+.fab:active{transform:scale(.9)}
+.fab svg{width:25px;height:25px}
+
+/* ---------- Sheets ---------- */
+.backdrop{
+  position:fixed;inset:0;z-index:40;
+  background:rgba(4,5,8,.6);backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);
+  opacity:0;pointer-events:none;transition:opacity .22s;
+}
+.backdrop.show{opacity:1;pointer-events:auto}
+.sheet{
+  position:fixed;bottom:0;left:0;right:0;z-index:50;
+  max-width:680px;margin:0 auto;
+  background:#14171f;border:1px solid var(--line-strong);border-bottom:none;
+  border-radius:24px 24px 0 0;
+  padding:8px 20px calc(22px + var(--safe-b));
+  transform:translateY(105%);transition:transform .28s cubic-bezier(.32,.72,.25,1);
+  max-height:88dvh;overflow-y:auto;overscroll-behavior:contain;
+}
+.sheet.show{transform:none}
+.sheet .grip{width:38px;height:4px;border-radius:99px;background:var(--line-strong);margin:6px auto 16px}
+.sheet h3{font-size:17.5px;font-weight:800;margin-bottom:16px}
+.field{margin-bottom:16px}
+.field label{display:block;font-size:12.5px;font-weight:700;color:var(--muted);margin-bottom:7px;letter-spacing:.2px}
+.field input,.field textarea{
+  width:100%;background:var(--surface-2);
+  border:1px solid var(--line);border-radius:13px;
+  padding:11px 14px;font-size:15px;outline:none;
+  transition:border-color .15s;
+}
+.field input:focus,.field textarea:focus{border-color:rgba(61,220,151,.5)}
+.field input::placeholder,.field textarea::placeholder{color:var(--faint)}
+.preview-strip{
+  display:flex;gap:12px;align-items:center;
+  background:var(--surface-2);border:1px solid var(--line);
+  border-radius:14px;padding:10px;margin-bottom:16px;
+}
+.preview-strip .pimg{
+  width:86px;height:58px;border-radius:9px;flex-shrink:0;
+  background-size:cover;background-position:center;
+  display:grid;place-items:center;
+}
+.preview-strip .ptxt{min-width:0;flex:1}
+.preview-strip .pname{font-size:12px;font-weight:700}
+.preview-strip .purl{font-size:11.5px;color:var(--faint);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;direction:ltr;text-align:right}
+.dup-note{display:none;font-size:12.5px;color:#fbbf24;margin:-8px 0 14px;font-weight:600}
+.dup-note.show{display:block}
+.cat-grid{display:flex;flex-wrap:wrap;gap:8px}
+.cat-opt{
+  display:flex;align-items:center;gap:6px;
+  padding:8px 13px;border-radius:12px;
+  background:var(--surface-2);border:1.5px solid var(--line);
+  font-size:13.5px;font-weight:600;color:var(--muted);
+  transition:all .15s;
+}
+.cat-opt:active{transform:scale(.95)}
+.cat-opt.on{color:var(--text);border-color:var(--c,var(--accent));background:color-mix(in srgb,var(--c,var(--accent)) 14%,transparent)}
+.sheet-actions{display:flex;gap:10px;margin-top:22px}
+.btn{
+  flex:1;padding:13px;border-radius:14px;
+  font-size:15px;font-weight:700;transition:transform .15s;
+}
+.btn:active{transform:scale(.97)}
+.btn-primary{background:linear-gradient(135deg,var(--accent),var(--accent-deep));color:#04120c}
+.btn-primary:disabled{opacity:.4}
+.btn-ghost{background:var(--surface-2);border:1px solid var(--line);color:var(--muted);flex:0 0 auto;padding:13px 20px}
+.btn-danger{background:rgba(248,113,113,.12);border:1px solid rgba(248,113,113,.3);color:var(--danger);flex:0 0 auto;padding:13px 16px}
+
+/* item actions sheet */
+.act-list{display:flex;flex-direction:column;gap:4px}
+.act{
+  display:flex;align-items:center;gap:14px;
+  padding:13px 10px;border-radius:13px;font-size:15px;font-weight:600;
+  text-align:start;width:100%;
+}
+.act:active{background:var(--surface-2)}
+.act svg{width:19px;height:19px;color:var(--muted);flex-shrink:0}
+.act.danger{color:var(--danger)}
+.act.danger svg{color:var(--danger)}
+
+/* settings */
+.set-section{margin-bottom:22px}
+.set-section h4{font-size:12.5px;font-weight:700;color:var(--faint);letter-spacing:.4px;margin-bottom:10px}
+.cat-row{
+  display:flex;align-items:center;gap:11px;
+  padding:10px 4px;border-bottom:1px solid var(--line);
+}
+.cat-row:last-child{border-bottom:none}
+.cat-row .sw{width:12px;height:12px;border-radius:4px;flex-shrink:0}
+.cat-row .nm{flex:1;font-weight:600;font-size:14.5px}
+.cat-row .cnt{font-size:12px;color:var(--faint)}
+.cat-row button{color:var(--faint);padding:6px}
+.cat-row button svg{width:16px;height:16px}
+.add-cat{display:flex;gap:8px;margin-top:12px}
+.add-cat input{
+  flex:1;background:var(--surface-2);border:1px solid var(--line);
+  border-radius:12px;padding:10px 13px;font-size:14px;outline:none;
+}
+.add-cat button{
+  padding:10px 16px;border-radius:12px;
+  background:var(--surface-2);border:1px solid var(--line-strong);
+  font-weight:700;font-size:14px;color:var(--accent);
+}
+.stat-line{font-size:13px;color:var(--muted);padding:4px 0}
+
+/* toast */
+#toast{
+  position:fixed;bottom:calc(100px + var(--safe-b));left:50%;transform:translateX(-50%) translateY(16px);
+  z-index:70;background:#1e232e;border:1px solid var(--line-strong);
+  color:var(--text);font-size:14px;font-weight:600;
+  padding:11px 20px;border-radius:14px;
+  box-shadow:0 10px 30px rgba(0,0,0,.5);
+  opacity:0;pointer-events:none;transition:all .25s;
+  white-space:nowrap;max-width:88vw;overflow:hidden;text-overflow:ellipsis;
+}
+#toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+
+@media(min-width:640px){
+  main{padding-top:20px}
+  .feed-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+  .feed-grid .card{margin-bottom:0}
+  .month-h{grid-column:1/-1}
+}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="hdr-row">
+    <div class="logo">
+      <svg width="34" height="34" viewBox="0 0 34 34" fill="none">
+        <rect width="34" height="34" rx="10" fill="url(#lg)"/>
+        <path d="M11.5 9.5h11a1.5 1.5 0 0 1 1.5 1.5v13.6c0 .83-.94 1.3-1.6.8L17 21.2l-5.4 4.2c-.66.5-1.6.03-1.6-.8V11a1.5 1.5 0 0 1 1.5-1.5z" fill="#04120c"/>
+        <defs><linearGradient id="lg" x1="0" y1="0" x2="34" y2="34"><stop stop-color="#3ddc97"/><stop offset="1" stop-color="#0f9d6e"/></linearGradient></defs>
+      </svg>
+      <div>
+        <h1>שמורה</h1>
+        <div class="count" id="hdrCount"></div>
+      </div>
+    </div>
+    <button class="icon-btn" id="searchBtn" aria-label="חיפוש">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+    </button>
+    <button class="icon-btn" id="settingsBtn" aria-label="הגדרות">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+    </button>
+  </div>
+  <div class="search-wrap" id="searchWrap">
+    <div class="search-box">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+      <input id="searchInput" type="search" placeholder="חיפוש לפי כותרת, תגית או קטגוריה..." autocomplete="off">
+      <button class="icon-btn search-clear" id="searchClear" style="width:26px;height:26px;border:none;background:none">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+      </button>
+    </div>
+  </div>
+  <div class="chips" id="chips"></div>
+</header>
+
+<main><div id="feed"></div></main>
+
+<button class="fab" id="fabBtn" aria-label="הוספת לינק">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+</button>
+
+<div class="backdrop" id="backdrop"></div>
+
+<!-- Save / Edit sheet -->
+<div class="sheet" id="saveSheet">
+  <div class="grip"></div>
+  <h3 id="saveTitle">שמירת לינק</h3>
+  <div class="field" id="urlField">
+    <label>לינק</label>
+    <input id="fUrl" type="url" inputmode="url" dir="ltr" placeholder="https://..." autocomplete="off">
+  </div>
+  <div class="preview-strip" id="pvStrip" style="display:none">
+    <div class="pimg" id="pvImg"></div>
+    <div class="ptxt">
+      <div class="pname" id="pvName"></div>
+      <div class="purl" id="pvUrl"></div>
+    </div>
+  </div>
+  <div class="dup-note" id="dupNote">⚠️ הלינק הזה כבר שמור אצלך</div>
+  <div class="field">
+    <label>כותרת</label>
+    <input id="fTitle" type="text" placeholder="על מה הסרטון?" autocomplete="off">
+  </div>
+  <div class="field">
+    <label>קטגוריה</label>
+    <div class="cat-grid" id="fCats"></div>
+  </div>
+  <div class="field">
+    <label>תגיות (מופרדות בפסיק)</label>
+    <input id="fTags" type="text" placeholder="למשל: ארוחת ערב, ילדים" autocomplete="off">
+  </div>
+  <div class="sheet-actions">
+    <button class="btn btn-primary" id="saveBtn">שמירה</button>
+    <button class="btn btn-ghost" id="cancelBtn">ביטול</button>
+  </div>
+</div>
+
+<!-- Item actions sheet -->
+<div class="sheet" id="actSheet">
+  <div class="grip"></div>
+  <div class="act-list">
+    <button class="act" id="actOpen">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6M10 14 21 3M21 14v5a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5"/></svg>
+      פתיחת הסרטון
+    </button>
+    <button class="act" id="actEdit">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.83 2.83 0 0 1 4 4L7.5 20.5 2 22l1.5-5.5z"/></svg>
+      עריכה
+    </button>
+    <button class="act" id="actShare">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8M16 6l-4-4-4 4M12 2v13"/></svg>
+      שיתוף הלאה
+    </button>
+    <button class="act danger" id="actDelete">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/></svg>
+      מחיקה
+    </button>
+  </div>
+</div>
+
+<!-- Settings sheet -->
+<div class="sheet" id="setSheet">
+  <div class="grip"></div>
+  <h3>הגדרות</h3>
+  <div class="set-section">
+    <h4>קטגוריות</h4>
+    <div id="catManager"></div>
+    <div class="add-cat">
+      <input id="newCatName" type="text" placeholder="קטגוריה חדשה..." maxlength="20">
+      <button id="addCatBtn">הוספה</button>
+    </div>
+  </div>
+  <div class="set-section">
+    <h4>גיבוי</h4>
+    <div class="act-list">
+      <button class="act" id="exportBtn">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+        ייצוא גיבוי (JSON)
+      </button>
+      <button class="act" id="importBtn">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12"/></svg>
+        ייבוא מגיבוי
+      </button>
+      <input type="file" id="importFile" accept="application/json" hidden>
+    </div>
+  </div>
+  <div class="set-section">
+    <h4>נתונים</h4>
+    <div class="stat-line" id="statLine"></div>
+    <div class="stat-line" style="color:var(--faint);font-size:12px">הנתונים נשמרים על המכשיר הזה בלבד. מומלץ לייצא גיבוי מדי פעם.</div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+'use strict';
+/* ================= Data layer ================= */
+const DB_NAME='shmura', DB_VER=1;
+let db=null;
+function openDB(){return new Promise((res,rej)=>{
+  const r=indexedDB.open(DB_NAME,DB_VER);
+  r.onupgradeneeded=e=>{
+    const d=e.target.result;
+    if(!d.objectStoreNames.contains('items')){
+      const s=d.createObjectStore('items',{keyPath:'id'});
+      s.createIndex('createdAt','createdAt');
+    }
+  };
+  r.onsuccess=()=>{db=r.result;res()};
+  r.onerror=()=>rej(r.error);
+})}
+function tx(mode){return db.transaction('items',mode).objectStore('items')}
+function dbAll(){return new Promise(res=>{const q=tx('readonly').getAll();q.onsuccess=()=>res(q.result||[])})}
+function dbPut(item){return new Promise(res=>{tx('readwrite').put(item).onsuccess=()=>res()})}
+function dbDel(id){return new Promise(res=>{tx('readwrite').delete(id).onsuccess=()=>res()})}
+
+/* categories in localStorage */
+const PALETTE=['#a78bfa','#fbbf24','#f87171','#34d399','#60a5fa','#f472b6','#2dd4bf','#fb923c','#c084fc','#facc15','#4ade80','#38bdf8'];
+const DEFAULT_CATS=[
+  {id:'inspiration',name:'השראה',emoji:'✨',color:'#a78bfa'},
+  {id:'humor',name:'צחוקים',emoji:'😂',color:'#fbbf24'},
+  {id:'food',name:'מתכונים',emoji:'🍳',color:'#f87171'},
+  {id:'fitness',name:'כושר',emoji:'💪',color:'#34d399'},
+  {id:'parenting',name:'הורות',emoji:'🧒',color:'#60a5fa'},
+  {id:'education',name:'חינוך',emoji:'📚',color:'#f472b6'},
+  {id:'music',name:'מוזיקה',emoji:'🎵',color:'#2dd4bf'},
+  {id:'later',name:'לצפייה',emoji:'🍿',color:'#fb923c'},
+];
+function getCats(){
+  try{const c=JSON.parse(localStorage.getItem('shmura_cats'));if(Array.isArray(c)&&c.length)return c}catch(e){}
+  return DEFAULT_CATS.slice();
+}
+function setCats(c){try{localStorage.setItem('shmura_cats',JSON.stringify(c))}catch(e){}}
+let cats=getCats();
+const catById=id=>cats.find(c=>c.id===id);
+
+/* ================= URL / platform helpers ================= */
+const PLATFORMS={
+  youtube:{name:'YouTube',color:'#ff4245',grad:['#3a0d10','#7f1d1d']},
+  instagram:{name:'Instagram',color:'#e95bd2',grad:['#3d1140','#8b2a6b']},
+  facebook:{name:'Facebook',color:'#4b8bff',grad:['#0f2247','#1d4ed8']},
+  tiktok:{name:'TikTok',color:'#4be1e6',grad:['#101014','#232336']},
+  web:{name:'קישור',color:'#9aa3b5',grad:['#1a1e28','#2a3040']},
+};
+function cleanUrl(u){
+  try{
+    const url=new URL(u);
+    ['utm_source','utm_medium','utm_campaign','utm_term','utm_content','igsh','igshid','si','fbclid','mibextid','feature','s','t'].forEach(p=>url.searchParams.delete(p));
+    let s=url.toString();
+    if(s.endsWith('?'))s=s.slice(0,-1);
+    return s;
+  }catch(e){return u}
+}
+function detectPlatform(u){
+  let h='';try{h=new URL(u).hostname.replace(/^www\.|^m\.|^web\./,'')}catch(e){return 'web'}
+  if(/youtube\.com$|youtu\.be$/.test(h))return 'youtube';
+  if(/instagram\.com$/.test(h))return 'instagram';
+  if(/facebook\.com$|fb\.watch$|fb\.com$/.test(h))return 'facebook';
+  if(/tiktok\.com$/.test(h))return 'tiktok';
+  return 'web';
+}
+function ytId(u){
+  try{
+    const url=new URL(u);
+    if(url.hostname.includes('youtu.be'))return url.pathname.slice(1).split('/')[0];
+    const m=url.pathname.match(/\/(shorts|embed|live)\/([\w-]{6,})/);
+    if(m)return m[2];
+    return url.searchParams.get('v');
+  }catch(e){return null}
+}
+function extractUrl(text){
+  if(!text)return null;
+  const m=String(text).match(/https?:\/\/[^\s"'<>]+/);
+  return m?m[0]:null;
+}
+function suggestTitle(text,url){
+  if(!text)return '';
+  let t=String(text).replace(/https?:\/\/[^\s"'<>]+/g,'').replace(/\s+/g,' ').trim();
+  t=t.split('\n')[0].trim();
+  if(t.length>90)t=t.slice(0,90).trim()+'…';
+  return t;
+}
+async function fetchMeta(url){
+  try{
+    const ctrl=new AbortController();
+    const to=setTimeout(()=>ctrl.abort(),4000);
+    const r=await fetch('https://noembed.com/embed?url='+encodeURIComponent(url),{signal:ctrl.signal});
+    clearTimeout(to);
+    if(!r.ok)return null;
+    const j=await r.json();
+    if(j.error)return null;
+    return {title:j.title||'',thumb:j.thumbnail_url||''};
+  }catch(e){return null}
+}
+
+/* ================= State ================= */
+let items=[];
+let activeCat='all';
+let query='';
+let editingId=null;   // item being edited, or null for new
+let actItemId=null;   // item behind the actions sheet
+let pendingMeta=0;    // token to ignore stale meta fetches
+
+/* ================= Rendering ================= */
+const $=id=>document.getElementById(id);
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const MONTHS=['ינואר','פברואר','מרץ','אפריל','מאי','יוני','יולי','אוגוסט','ספטמבר','אוקטובר','נובמבר','דצמבר'];
+function relDate(ts){
+  const d=new Date(ts),now=new Date();
+  const days=Math.floor((now-d)/864e5);
+  if(days===0)return 'היום';
+  if(days===1)return 'אתמול';
+  if(days<7)return `לפני ${days} ימים`;
+  return d.getDate()+' ב'+MONTHS[d.getMonth()]+(d.getFullYear()!==now.getFullYear()?' '+d.getFullYear():'');
+}
+function monthKey(ts){const d=new Date(ts);return d.getFullYear()+'-'+d.getMonth()}
+function monthLabel(ts){const d=new Date(ts);return MONTHS[d.getMonth()]+' '+d.getFullYear()}
+
+function filtered(){
+  let list=items.slice().sort((a,b)=>b.createdAt-a.createdAt);
+  if(activeCat!=='all')list=list.filter(i=>i.cat===activeCat);
+  if(query){
+    const q=query.toLowerCase();
+    list=list.filter(i=>{
+      const cat=catById(i.cat);
+      return (i.title||'').toLowerCase().includes(q)
+        ||(i.tags||[]).some(t=>t.toLowerCase().includes(q))
+        ||(cat&&cat.name.toLowerCase().includes(q))
+        ||PLATFORMS[i.platform].name.toLowerCase().includes(q)
+        ||(i.url||'').toLowerCase().includes(q);
+    });
+  }
+  return list;
+}
+
+function renderChips(){
+  const counts={};items.forEach(i=>counts[i.cat]=(counts[i.cat]||0)+1);
+  let html=`<button class="chip ${activeCat==='all'?'on':''}" data-cat="all">הכל <span class="n">${items.length}</span></button>`;
+  cats.forEach(c=>{
+    const n=counts[c.id]||0;
+    if(n===0&&activeCat!==c.id)return;
+    html+=`<button class="chip ${activeCat===c.id?'on':''}" data-cat="${c.id}">${c.emoji?c.emoji+' ':''}${esc(c.name)} <span class="n">${n}</span></button>`;
+  });
+  $('chips').innerHTML=html;
+}
+
+function thumbHtml(i){
+  const p=PLATFORMS[i.platform];
+  const badge=`<span class="badge"><span class="dot" style="background:${p.color}"></span>${p.name}</span>`;
+  const more=`<button class="card-more" data-more="${i.id}" aria-label="אפשרויות"><svg viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg></button>`;
+  const play=(i.platform!=='web')?`<span class="play"><span><svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5.5v13l11-6.5z"/></svg></span></span>`:'';
+  if(i.thumb){
+    return `<a class="thumb" href="${esc(i.url)}" target="_blank" rel="noopener"><img src="${esc(i.thumb)}" loading="lazy" alt="" onerror="this.parentElement.querySelector('.play')?.remove();this.replaceWith(window._phEl('${i.platform}'))">${play}${badge}${more}</a>`;
+  }
+  return `<a class="thumb" href="${esc(i.url)}" target="_blank" rel="noopener" style="background:linear-gradient(135deg,${p.grad[0]},${p.grad[1]})"><span class="ph"><span class="wordmark">${p.name}</span><span class="sub">${i.platform==='web'?esc(hostOf(i.url)):'סרטון שמור'}</span></span>${badge}${more}</a>`;
+}
+window._phEl=function(platform){
+  const p=PLATFORMS[platform];
+  const s=document.createElement('span');
+  s.className='ph';
+  s.style.background=`linear-gradient(135deg,${p.grad[0]},${p.grad[1]})`;
+  s.innerHTML=`<span class="wordmark">${p.name}</span><span class="sub">סרטון שמור</span>`;
+  return s;
+};
+function hostOf(u){try{return new URL(u).hostname.replace(/^www\./,'')}catch(e){return ''}}
+
+function cardHtml(i){
+  const c=catById(i.cat);
+  const catPill=c?`<span class="cat-pill" style="background:color-mix(in srgb,${c.color} 16%,transparent);color:${c.color}">${c.emoji?c.emoji+' ':''}${esc(c.name)}</span>`:'';
+  const tags=(i.tags||[]).slice(0,3).map(t=>`<span class="tag">${esc(t)}</span>`).join('');
+  return `<article class="card" style="position:relative">
+    ${thumbHtml(i)}
+    <div class="card-body">
+      <div class="card-title">${esc(i.title||hostOf(i.url))}</div>
+      <div class="card-meta">${catPill}${tags}<span class="date">${relDate(i.createdAt)}</span></div>
+    </div>
+  </article>`;
+}
+
+function renderFeed(){
+  const list=filtered();
+  $('hdrCount').textContent=items.length?items.length+' שמורים':'';
+  renderChips();
+  const feed=$('feed');
+  if(!items.length){
+    feed.innerHTML=`<div class="empty">
+      <svg width="120" height="100" viewBox="0 0 120 100" fill="none">
+        <rect x="22" y="12" width="76" height="52" rx="10" fill="#171b24" stroke="rgba(255,255,255,.1)"/>
+        <circle cx="60" cy="38" r="13" fill="rgba(61,220,151,.14)"/>
+        <path d="M56 32.5v11l9-5.5z" fill="#3ddc97"/>
+        <rect x="30" y="72" width="60" height="7" rx="3.5" fill="#171b24"/>
+        <rect x="40" y="86" width="40" height="6" rx="3" fill="#12151c"/>
+      </svg>
+      <h2>הספרייה ריקה עדיין</h2>
+      <p>ראית סרטון ששווה לשמור? לחץ שיתוף באינסטגרם, ביוטיוב או בפייסבוק, ובחר "שמורה".</p>
+      <div class="hint"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg> אפשר גם להדביק לינק עם הכפתור למטה</div>
+    </div>`;
+    return;
+  }
+  if(!list.length){
+    feed.innerHTML=`<div class="empty"><h2>לא נמצא כלום</h2><p>נסה חיפוש אחר או קטגוריה אחרת.</p></div>`;
+    return;
+  }
+  let html='',lastMonth='';
+  const grid=window.matchMedia('(min-width:640px)').matches;
+  if(grid)html='<div class="feed-grid">';
+  list.forEach(i=>{
+    const mk=monthKey(i.createdAt);
+    if(mk!==lastMonth){html+=`<div class="month-h">${monthLabel(i.createdAt)}</div>`;lastMonth=mk}
+    html+=cardHtml(i);
+  });
+  if(grid)html+='</div>';
+  feed.innerHTML=html;
+}
+
+/* ================= Sheets ================= */
+function openSheet(id){
+  $('backdrop').classList.add('show');
+  $(id).classList.add('show');
+  document.body.style.overflow='hidden';
+}
+function closeSheets(){
+  $('backdrop').classList.remove('show');
+  document.querySelectorAll('.sheet').forEach(s=>s.classList.remove('show'));
+  document.body.style.overflow='';
+}
+$('backdrop').addEventListener('click',closeSheets);
+
+let toastT=null;
+function toast(msg){
+  const t=$('toast');t.textContent=msg;t.classList.add('show');
+  clearTimeout(toastT);toastT=setTimeout(()=>t.classList.remove('show'),2400);
+}
+
+/* ---- save sheet ---- */
+let draft={};
+function renderCatOpts(){
+  $('fCats').innerHTML=cats.map(c=>
+    `<button class="cat-opt ${draft.cat===c.id?'on':''}" style="--c:${c.color}" data-cat="${c.id}">${c.emoji?c.emoji+' ':''}${esc(c.name)}</button>`
+  ).join('');
+}
+$('fCats').addEventListener('click',e=>{
+  const b=e.target.closest('[data-cat]');if(!b)return;
+  draft.cat=(draft.cat===b.dataset.cat)?null:b.dataset.cat;
+  renderCatOpts();
+});
+function updatePreview(){
+  const p=PLATFORMS[draft.platform||'web'];
+  const strip=$('pvStrip');
+  if(!draft.url){strip.style.display='none';return}
+  strip.style.display='flex';
+  $('pvName').textContent=p.name;
+  $('pvName').style.color=p.color;
+  $('pvUrl').textContent=draft.url;
+  const img=$('pvImg');
+  if(draft.thumb){img.style.backgroundImage=`url("${draft.thumb}")`;img.innerHTML=''}
+  else{img.style.backgroundImage=`linear-gradient(135deg,${p.grad[0]},${p.grad[1]})`;img.innerHTML=`<svg width="20" height="20" viewBox="0 0 24 24" fill="rgba(255,255,255,.8)"><path d="M8 5.5v13l11-6.5z"/></svg>`}
+}
+function applyUrlToDraft(raw){
+  const url=cleanUrl(raw.trim());
+  draft.url=url;
+  if($('fUrl').value!==url)$('fUrl').value=url;
+  draft.platform=detectPlatform(url);
+  if(draft.platform==='youtube'){
+    const id=ytId(url);
+    if(id)draft.thumb='https://i.ytimg.com/vi/'+id+'/hqdefault.jpg';
+  }
+  updatePreview();
+  const dup=items.some(i=>i.url===url&&i.id!==editingId);
+  $('dupNote').classList.toggle('show',dup);
+  const token=++pendingMeta;
+  fetchMeta(url).then(meta=>{
+    if(token!==pendingMeta||!meta)return;
+    if(meta.thumb&&!draft.thumb)draft.thumb=meta.thumb;
+    if(meta.title&&!$('fTitle').value)$('fTitle').value=meta.title;
+    updatePreview();
+  });
+}
+function openSave(prefill){
+  editingId=prefill.id||null;
+  draft={url:'',platform:'web',thumb:prefill.thumb||'',cat:prefill.cat||null};
+  $('saveTitle').textContent=editingId?'עריכה':'שמירת לינק';
+  $('fUrl').value=prefill.url||'';
+  $('fTitle').value=prefill.title||'';
+  $('fTags').value=(prefill.tags||[]).join(', ');
+  $('dupNote').classList.remove('show');
+  if(prefill.url)applyUrlToDraft(prefill.url);
+  else{$('pvStrip').style.display='none'}
+  renderCatOpts();
+  openSheet('saveSheet');
+  if(!prefill.url)setTimeout(()=>$('fUrl').focus(),300);
+}
+$('fUrl').addEventListener('input',e=>{
+  const u=extractUrl(e.target.value)||e.target.value.trim();
+  if(/^https?:\/\//.test(u))applyUrlToDraft(u);
+});
+$('saveBtn').addEventListener('click',async()=>{
+  const url=draft.url||extractUrl($('fUrl').value);
+  if(!url||!/^https?:\/\//.test(url)){toast('צריך לינק תקין כדי לשמור');$('fUrl').focus();return}
+  const tags=$('fTags').value.split(',').map(t=>t.trim()).filter(Boolean);
+  const existing=editingId?items.find(i=>i.id===editingId):null;
+  const item={
+    id:editingId||(Date.now().toString(36)+Math.random().toString(36).slice(2,7)),
+    url:draft.url||cleanUrl(url),
+    title:$('fTitle').value.trim()||suggestTitle('',url),
+    platform:draft.platform||detectPlatform(url),
+    thumb:draft.thumb||'',
+    cat:draft.cat||null,
+    tags,
+    createdAt:existing?existing.createdAt:Date.now(),
+  };
+  await dbPut(item);
+  if(existing)Object.assign(existing,item);else items.push(item);
+  closeSheets();
+  renderFeed();
+  toast(editingId?'עודכן ✓':'נשמר בספרייה ✓');
+  editingId=null;
+});
+$('cancelBtn').addEventListener('click',closeSheets);
+
+/* ---- item actions ---- */
+document.addEventListener('click',e=>{
+  const m=e.target.closest('[data-more]');
+  if(m){e.preventDefault();e.stopPropagation();actItemId=m.dataset.more;openSheet('actSheet')}
+});
+const actItem=()=>items.find(i=>i.id===actItemId);
+$('actOpen').addEventListener('click',()=>{const i=actItem();if(i)window.open(i.url,'_blank');closeSheets()});
+$('actEdit').addEventListener('click',()=>{const i=actItem();closeSheets();if(i)setTimeout(()=>openSave(i),250)});
+$('actShare').addEventListener('click',async()=>{
+  const i=actItem();closeSheets();if(!i)return;
+  if(navigator.share){try{await navigator.share({title:i.title,url:i.url})}catch(e){}}
+  else{try{await navigator.clipboard.writeText(i.url);toast('הלינק הועתק')}catch(e){}}
+});
+$('actDelete').addEventListener('click',async()=>{
+  const i=actItem();if(!i)return;
+  await dbDel(i.id);
+  items=items.filter(x=>x.id!==i.id);
+  closeSheets();renderFeed();toast('נמחק');
+});
+
+/* ---- chips / search ---- */
+$('chips').addEventListener('click',e=>{
+  const b=e.target.closest('[data-cat]');if(!b)return;
+  activeCat=b.dataset.cat;renderFeed();
+});
+$('searchBtn').addEventListener('click',()=>{
+  const w=$('searchWrap');
+  const open=w.classList.toggle('open');
+  $('searchBtn').classList.toggle('active',open);
+  if(open)setTimeout(()=>$('searchInput').focus(),200);
+  else{query='';$('searchInput').value='';$('searchClear').classList.remove('show');renderFeed()}
+});
+$('searchInput').addEventListener('input',e=>{
+  query=e.target.value.trim();
+  $('searchClear').classList.toggle('show',!!query);
+  renderFeed();
+});
+$('searchClear').addEventListener('click',()=>{
+  query='';$('searchInput').value='';$('searchClear').classList.remove('show');
+  $('searchInput').focus();renderFeed();
+});
+$('fabBtn').addEventListener('click',async()=>{
+  let pre={};
+  try{
+    if(navigator.clipboard&&navigator.clipboard.readText){
+      const t=await navigator.clipboard.readText();
+      const u=extractUrl(t);
+      if(u&&!items.some(i=>i.url===cleanUrl(u)))pre.url=u;
+    }
+  }catch(e){}
+  openSave(pre);
+});
+
+/* ---- settings ---- */
+function renderCatManager(){
+  const counts={};items.forEach(i=>counts[i.cat]=(counts[i.cat]||0)+1);
+  $('catManager').innerHTML=cats.map(c=>`
+    <div class="cat-row">
+      <span class="sw" style="background:${c.color}"></span>
+      <span class="nm">${c.emoji?c.emoji+' ':''}${esc(c.name)}</span>
+      <span class="cnt">${counts[c.id]||0}</span>
+      <button data-delcat="${c.id}" aria-label="מחיקת קטגוריה"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
+    </div>`).join('');
+  const s=filtered();
+  $('statLine').textContent=`${items.length} לינקים שמורים · ${cats.length} קטגוריות`;
+}
+$('settingsBtn').addEventListener('click',()=>{renderCatManager();openSheet('setSheet')});
+$('catManager').addEventListener('click',async e=>{
+  const b=e.target.closest('[data-delcat]');if(!b)return;
+  const id=b.dataset.delcat;
+  const used=items.filter(i=>i.cat===id).length;
+  if(used&&!confirm(`יש ${used} לינקים בקטגוריה הזאת. למחוק אותה? (הלינקים יישארו, בלי קטגוריה)`))return;
+  cats=cats.filter(c=>c.id!==id);setCats(cats);
+  for(const i of items){if(i.cat===id){i.cat=null;await dbPut(i)}}
+  if(activeCat===id)activeCat='all';
+  renderCatManager();renderFeed();
+});
+$('addCatBtn').addEventListener('click',()=>{
+  const name=$('newCatName').value.trim();
+  if(!name)return;
+  if(cats.some(c=>c.name===name)){toast('קטגוריה כזאת כבר קיימת');return}
+  cats.push({id:'c'+Date.now().toString(36),name,emoji:'',color:PALETTE[cats.length%PALETTE.length]});
+  setCats(cats);
+  $('newCatName').value='';
+  renderCatManager();renderFeed();
+});
+$('exportBtn').addEventListener('click',()=>{
+  const data={app:'shmura',version:1,exportedAt:new Date().toISOString(),categories:cats,items};
+  const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'});
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  a.download='shmura-backup-'+new Date().toISOString().slice(0,10)+'.json';
+  a.click();
+  URL.revokeObjectURL(a.href);
+  toast('הגיבוי ירד למכשיר');
+});
+$('importBtn').addEventListener('click',()=>$('importFile').click());
+$('importFile').addEventListener('change',async e=>{
+  const f=e.target.files[0];if(!f)return;
+  try{
+    const data=JSON.parse(await f.text());
+    if(!data.items||!Array.isArray(data.items))throw new Error('bad');
+    if(Array.isArray(data.categories)){
+      data.categories.forEach(c=>{if(c&&c.id&&c.name&&!cats.some(x=>x.id===c.id))cats.push(c)});
+      setCats(cats);
+    }
+    let added=0;
+    for(const it of data.items){
+      if(!it||!it.id||!it.url)continue;
+      if(items.some(x=>x.id===it.id||x.url===it.url))continue;
+      await dbPut(it);items.push(it);added++;
+    }
+    renderFeed();toast(`יובאו ${added} לינקים`);
+  }catch(err){toast('הקובץ לא תקין')}
+  e.target.value='';
+});
+
+window.matchMedia('(min-width:640px)').addEventListener('change',renderFeed);
+
+/* ================= Share target intake ================= */
+function handleShareParams(){
+  const p=new URLSearchParams(location.search);
+  const sUrl=p.get('share_url')||'',sText=p.get('share_text')||'',sTitle=p.get('share_title')||'';
+  if(!sUrl&&!sText&&!sTitle)return;
+  history.replaceState(null,'',location.pathname);
+  const url=extractUrl(sUrl)||extractUrl(sText)||extractUrl(sTitle);
+  const title=suggestTitle(sTitle,url)||suggestTitle(sText,url);
+  if(!url){toast('לא נמצא לינק בשיתוף');return}
+  const clean=cleanUrl(url);
+  const existing=items.find(i=>i.url===clean);
+  if(existing){toast('הלינק הזה כבר שמור אצלך');return}
+  setTimeout(()=>openSave({url,title}),200);
+}
+
+/* ================= Boot ================= */
+(async function(){
+  await openDB();
+  items=await dbAll();
+  renderFeed();
+  handleShareParams();
+  if('serviceWorker' in navigator){
+    navigator.serviceWorker.register('sw.js').catch(()=>{});
+  }
+})();
+</script>
+</body>
+</html>
